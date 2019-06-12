@@ -62,13 +62,14 @@ def getFile(url):
 
 os.mkdir('pdf_download')
 os.chdir(os.path.join(os.getcwd(), 'pdf_download'))
-
-for i in range(1, 3):
+begin = 0
+for i in range(1, 4):
+   begin = 0 + begin
    print('=========================================================================================================')
    print('Begin the {} time crawl'.format(i))
    print('=========================================================================================================')
    page = 0
-   for j in range(1, 5):
+   for j in range(1, 10):
        page = 1 + page
        raw_url = 'http://vip.stock.finance.sina.com.cn/corp/view/vCB_BulletinGather.php?ftype=ndbg&page={}'.format(j)
        html = getHtml(raw_url)
@@ -77,10 +78,9 @@ for i in range(1, 3):
 
        for tag in tags:
           time = 1 + time
-          print('Crawl the page ' + str(page) + ' and the ' + str(time) + ' firm ！')
+          print('The ' + str(begin) + ' time crawl! Crawl the page ' + str(page) + ' and the ' + str(time) + ' firm ！')
           print(tag.text)
           print(tag.get('href'))
           url = tag.get('href')
           getFile(url)
           print('---------------------------------------------------------------------------------------------------------')
-
