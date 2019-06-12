@@ -1,0 +1,77 @@
+# coding = UTF-8
+# 爬取李东风PDF文档,网址：http://www.math.pku.edu.cn/teachers/lidf/docs/textrick/index.htm
+from bs4 import BeautifulSoup
+import urllib.request
+import re
+import os
+
+# open the url and read
+
+def getHtml(url):
+    page = urllib.request.urlopen(url)
+    html = page.read()
+    print(html)
+    page.close()
+    return html
+
+# compile the regular expressions and find
+# all stuff we need
+def getUrl(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    tags = soup.find_all('a', href=re.compile(r".*PDF$"))
+
+    print(tags)
+    return(tags)
+
+
+
+def getFile(url):
+    file_name = url.split('/')[-1]
+    global Max_Num
+    Max_Num = 6
+    for i in range(Max_Num):
+        try:
+            u = urllib.request.urlopen(url, timeout=5)
+            f = open(file_name, 'wb')
+
+            block_sz = 8192
+            while True:
+                buffer = u.read(block_sz)
+                # print(buffer)
+                if not buffer:
+                    break
+
+                f.write(buffer)
+            f.close()
+            print("Sucessful to download" + " " + file_name)
+
+            break
+        except:
+            if i < Max_Num - 1:
+                continue
+            else:
+                print
+                'URLError: <urlopen error timed out> All times is failed'
+
+
+
+
+
+
+#raw_url = 'http://vip.stock.finance.sina.com.cn/corp/view/vCB_BulletinGather.php?ftype=ndbg&page=1'
+os.mkdir('pdf_download')
+os.chdir(os.path.join(os.getcwd(), 'pdf_download'))
+
+for j in range(1,3):
+    raw_url = 'http://vip.stock.finance.sina.com.cn/corp/view/vCB_BulletinGather.php?ftype=ndbg&page={}'.format(j)
+    html = getHtml(raw_url)
+    tags = getUrl(html)
+
+
+    for tag in tags:
+       print(tag.text)
+       print(tag.get('href'))
+       url = tag.get('href')
+       getFile(url)
+
+
