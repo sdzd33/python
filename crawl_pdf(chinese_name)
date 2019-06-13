@@ -1,0 +1,94 @@
+# coding = UTF-8
+# -*- coding: cp936 -*-
+# 爬取李东风PDF文档,网址：http://www.math.pku.edu.cn/teachers/lidf/docs/textrick/index.htm
+from bs4 import BeautifulSoup
+import urllib.request
+import re
+import os
+
+# open the url and read
+
+def getHtml(url):
+    page = urllib.request.urlopen(url)
+    html = page.read()
+    print(html)
+    page.close()
+    return html
+
+# compile the regular expressions and find
+# all stuff we need
+
+
+def getUrl(html):
+    soup = BeautifulSoup(html, 'html.parser')
+    tags = soup.find_all('th')
+
+    print(tags)
+    return(tags)
+
+
+
+
+def getFile(tag):
+    file_name = tag.find_next('a').text
+    print(file_name)
+    url = tag.find_next('a').find_next('a').get('href')
+    global Max_Num
+    Max_Num = 6
+    for i in range(Max_Num):
+        try:
+            u = urllib.request.urlopen(url, timeout=5)
+            f = open(file_name, 'wb')
+
+            block_sz = 8192
+            while True:
+                buffer = u.read(block_sz)
+                # print(buffer)
+                if not buffer:
+                    break
+
+                f.write(buffer)
+            f.close()
+            print("Sucessful to download" + " " + file_name + " ！")
+
+            break
+        except:
+            if i < Max_Num - 1:
+                continue
+            else:
+                print
+                'URLError: <urlopen error timed out> All times is failed'
+
+
+
+
+
+
+#raw_url = 'http://vip.stock.finance.sina.com.cn/corp/view/vCB_BulletinGather.php?ftype=ndbg&page=1'
+
+
+for i in range(1, 5):
+   begin = i
+   print('=========================================================================================================')
+   print('Begin the {} time crawl'.format(i))
+   print('=========================================================================================================')
+   for j in range(1, 136):
+       page = j
+       raw_url = 'http://vip.stock.finance.sina.com.cn/corp/view/vCB_BulletinGather.php?ftype=ndbg&page={}'.format(j)
+       html = getHtml(raw_url)
+       tags = getUrl(html)
+       time = 0
+
+       for tag in tags:
+          time = 1 + time
+          print('The ' + str(begin) + ' time crawl! Crawl the page ' + str(page) + ' and the ' + str(time) + ' firm ！')
+          year = tag.find_next('a').text
+          print(tag.find_next('a').find_next('a').text)
+          print(tag.find_next('a').find_next('a').get('href'))
+
+          getFile(tag)
+
+
+          #url = tag.find_next('a').find_next('a').get('href')
+
+          print('---------------------------------------------------------------------------------------------------------')
