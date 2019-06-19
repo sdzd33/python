@@ -36,7 +36,7 @@ class Extractor(object):
         try:
             pages = []
             pdf = pdfplumber.open(self.file_path)
-            print('parse file:{}   page num:{}'.format(os.path.basename(self.file_path), len(pdf.pages)))
+            print('parse file:{}   page num:{}'.format(os.path.basename(self.file_path), len(pdf.pages)))  #.format( , )
             for index, page in enumerate(pdf.pages):
                 tables = page.extract_tables()
                 if len(tables) < 1:
@@ -68,6 +68,7 @@ class Extractor(object):
                         break
                     cnt = ind + 1
                     next = lines[ind + 1]
+                    # 表头下面是否有'单位'，有就是表头，没有就不是
                     if ind < len(lines) - 2 and re.search(r'单位[：:]', next):
                         next = lines[ind + 2]
                         cnt += 1
@@ -95,6 +96,7 @@ class Extractor(object):
                                     table += table_next
                             target_tables.append({'page': page_id + 1, 'method': 'guess', 'table': table,
                                                   'table-id': str(page_id + 1) + '-' + str(ti + 1)})
+        print(target_tables)
         return target_tables
 
     # 提取表格中存在指定类型信息的表格，规则由参数rules指定
@@ -109,8 +111,8 @@ class Extractor(object):
             for ti, table in enumerate(tables):
                 st = str(table)
                 if len(self.rules['in-table']) == sum([1 for in_tab in self.rules['in-table'] if in_tab in st]):
-                    if len(self.rules['not-in-table']) == sum(
-                            [1 for not_tab in self.rules['not-in-table'] if not not_tab in st]):
+                    if len(self.rules['not-in-table']) == \
+                            sum([1 for not_tab in self.rules['not-in-table'] if not not_tab in st]):
                         target_tables.append({'page': page_id + 1, 'method': 'content-in-table', 'table': table,
                                               'table-id': str(page_id + 1) + str(ti + 1)})
         return target_tables
@@ -124,8 +126,12 @@ class Extractor(object):
         for index, page in enumerate(pages):
             text = page['text']
             page_id = page['page']
-            if len(self.rules['in-page']) == sum([1 for rule in self.rules['in-page'] if re.search(rule, text)]):
+            print(self.rules['in-page'])
+            print(len(self.rules['in-page']))
+            if len(self.rules['in-page']) == sum([1 for rule in self.rules['in-page'] if re.search(rule, text)]) \
+                    and len(self.rules['in-page']) != 0:
                 target_pages.append({'page': page_id, 'text': text})
+
         return target_pages
 
     # 执行以上所有过程，返回提取结果
@@ -175,6 +181,7 @@ class Util():
                  'not-in-table': not_in_table, 'in-page': in_page}
         for k, v in rules.items():
             rules[k] = [i for i in v if not re.sub(r'\s+', '', i) == '']
+        # print(rules)
         return rules
 
     # 加载PDF文件，采用迭代遍历
@@ -194,7 +201,7 @@ class Util():
         print('save tmp file:', name)
         if not os.path.isdir('tmp'):
             os.mkdir('tmp')
-        tables = info[0]
+        tables = info[0]  # 函数输出了两个结果
         pages = info[1]
 
         # Excel样式
@@ -536,13 +543,13 @@ if __name__ == '__main__':
     folder = util.load_folder()
 
     # 执行多进程，，但仅执行单线程模式时这里可替换为run函数
-    #multi_processor_run(batch_processor, run, folder, rules, util)
-    for file_path in folder:
-      print(file_path)
-      run(rules, file_path,  util)
+    multi_processor_run(batch_processor, run, folder, rules, util)
+    #for file_path in folder:
+     # print(file_path)
+      #run(rules, file_path,  util)
 
     # 保存结果：5000代表每个Excel的单个sheet最多5000行，超过则会新建sheet
     # save...
-    re_format(5000)
+    re_format(3000)
     # 移除临时文件，这些临时文件在程序运行过程中会保存在当前目录的tmp文件夹内，其中每个Excel文件保存的是单个PDF文件的结果，最终这些结果将会通过re_format函数整合到一个Excel中，当想要保留这些结果时，可将下面一行代码注释掉
     shutil.rmtree('tmp')
