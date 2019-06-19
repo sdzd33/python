@@ -84,8 +84,7 @@ class Extractor(object):
                                 fi = ''.join([item for item in table_next[0] if item is not None])
                                 if re.sub(r'\s+', '', fi) in re.sub(r'\s+', '', pages[index + 1]['text'][1]):
                                     table += table_next
-                            target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
-                                                  'table-id': str(page_id + 1) + str(ti + 1)})
+                            target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table, 'table-id': str(page_id + 1) + str(ti + 1)})
                         # 表格可能不完整的情况
                         elif first in re.sub(r'\s+', '', next):
                             tables[ti] = False
@@ -96,7 +95,7 @@ class Extractor(object):
                                     table += table_next
                             target_tables.append({'page': page_id + 1, 'method': 'guess', 'table': table,
                                                   'table-id': str(page_id + 1) + '-' + str(ti + 1)})
-        print(target_tables)
+        #print(target_tables)
         return target_tables
 
     # 提取表格中存在指定类型信息的表格，规则由参数rules指定
@@ -112,7 +111,8 @@ class Extractor(object):
                 st = str(table)
                 if len(self.rules['in-table']) == sum([1 for in_tab in self.rules['in-table'] if in_tab in st]):
                     if len(self.rules['not-in-table']) == \
-                            sum([1 for not_tab in self.rules['not-in-table'] if not not_tab in st]):
+                            sum([1 for not_tab in self.rules['not-in-table'] if not not_tab in st]) \
+                            and len(self.rules['not-in-table']) != 0:
                         target_tables.append({'page': page_id + 1, 'method': 'content-in-table', 'table': table,
                                               'table-id': str(page_id + 1) + str(ti + 1)})
         return target_tables
@@ -126,8 +126,6 @@ class Extractor(object):
         for index, page in enumerate(pages):
             text = page['text']
             page_id = page['page']
-            print(self.rules['in-page'])
-            print(len(self.rules['in-page']))
             if len(self.rules['in-page']) == sum([1 for rule in self.rules['in-page'] if re.search(rule, text)]) \
                     and len(self.rules['in-page']) != 0:
                 target_pages.append({'page': page_id, 'text': text})
