@@ -35,30 +35,53 @@ class Extractor(object):
     def parse_pages(self):
         try:
             pages = []
+            code_lists = []
             pdf = pdfplumber.open(self.file_path)
             print('parse file:{}   page num:{}'.format(os.path.basename(self.file_path), len(pdf.pages)))  #.format( , )
             for index, page in enumerate(pdf.pages):
+                name = os.path.basename(self.file_path)
                 tables = page.extract_tables()
                 text = page.extract_text()
                 lines = re.split(r'\n+', text)
-                global code1, year1
+                code1 = 'None'
+                year1 = 'None'
                 if len(tables) < 1:
                     continue
                 for table in tables:
-                    for table1 in table:
+                    for mun1, table1 in enumerate(table):
                         for mun, table2 in enumerate(table1):
                             if table2 == None:
                                 continue
-                            if re.search(r'股票代码', table2):
-                                code1 = table1[mun + 1]
-                                year1 = re.findall(r'\d{4}', lines[0])
+                            if re.search(r'^股票代码$', table2):
+                                if re.search(r'\d{6}', str(table1[mun+1])) and table1[mun+1] is not None:
+                                    code1 = table1[mun + 1]
+                                    year1 = re.findall(r'\d{4}', lines[0])
+                                    code_lists.append({'name': name, 'code': code1, 'year': year1})
+                                    print(code1)
+                                    print(type(code1))
+                                elif re.search(r'\d{6}', str(table[mun1+1])) and table1[mun+1] is not None:
+                                    code1 = re.findall(r'\d{6}', str(table[mun1+1]))
+                                    code1 = ''.join([word for word in code1 if word is not None])
+                                    year1 = re.findall(r'\d{4}', lines[0])
+                                    code_lists.append({'name': name, 'code': code1, 'year': year1})
+                                    print(code1)
+                                    print(type(code1))
 
             for index, page in enumerate(pdf.pages):
+                code2 = []
+                year2 = []
                 tables = page.extract_tables()
+                name = os.path.basename(self.file_path)
+                for code_list in code_lists:
+                    if name == code_list['name']:
+                        code2 = code_list['code']
+                        year2 = code_list['year']
                 if len(tables) < 1:
                     continue
-                pages.append({'text': page.extract_text(), 'tables': tables, 'page': index + 1, 'code': code1, 'year': year1[0]})
+                pages.append({'name': name, 'text': page.extract_text(),
+                              'tables': tables, 'page': index + 1, 'code': code2, 'year': year2[0]})
 
+            print(pages)
             return pages
         except Exception as e:
             print(e)
@@ -79,9 +102,16 @@ class Extractor(object):
             lines = re.split(r'\n+', text)
             # 遍历当前页面的所有行
             for ind, line in enumerate(lines):
+                if lines[-1] == [] or lines[-1] is None:
+                    del lines[-1]
+                    print(ind)
                 # 判定表头符合规则的表格
-                if sum([1 for rule in self.rules['in-header'] if re.search(rule, line)]) > 0 and \
-                        sum([1 for rule in self.rules['not-in-header'] if re.search(rule, line)]) == 0:
+                if sum([1 for rule in self.rules['in-header'] if re.search(r'' + rule, line)]) > 0 and \
+                        sum([1 for rule in self.rules['not-in-header'] if re.search(r'' + rule, line)]) == 0:
+                    print(line)
+                    for rule in self.rules['in-header']:
+                        if re.search(r'' + rule, line):
+                            keyword = rule
                     if ind + 1 < len(lines) - 3:
                         cnt = ind + 1
                         next = lines[ind + 1]
@@ -97,7 +127,13 @@ class Extractor(object):
                                 if first == re.sub(r'\s+', '', next):
                                     tables[ti] = False
                                     last = ''.join([word for word in table[-1] if word is not None])
-                                    if last == re.sub(r'\s+', '', lines[len(lines) - 1]):
+                                    print(last)
+                                    print('last')
+                                    print(re.sub(r'\s+', '', lines[-2]))
+                                    print('all-2')
+                                    print(re.sub(r'\s+', '', lines[-1]))
+                                    print('all-1')
+                                    if last == re.sub(r'\s+', '', lines[-2]):
                                         if index + 1 < len(pages) and len(pages[index + 1]['tables']) > 0:
                                             table_next = pages[index + 1]['tables'][0]
                                             fi = ''.join([item for item in table_next[0] if item is not None])
@@ -105,16 +141,16 @@ class Extractor(object):
                                             if re.sub(r'\s+', '', fi) in re.sub(r'\s+', '', llines[1]):
                                                 table += table_next
                                         target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
-                                                              'table-id': str(page_id + 1) + str(ti + 1)})
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
                                     else:
                                         target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
-                                                              'table-id': str(page_id + 1) + str(ti + 1)})
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
 
                                 # 表格可能不完整的情况
                                 elif first in re.sub(r'\s+', '', next):
                                     tables[ti] = False
                                     last = ''.join([word for word in table[-1] if word is not None])
-                                    if last == re.sub(r'\s+', '', lines[len(lines) - 1]):
+                                    if last == re.sub(r'\s+', '', lines[-2]):
                                         if index + 1 < len(pages) and len(pages[index + 1]['tables']) > 0:
                                             table_next = pages[index + 1]['tables'][0]
                                             fi = ''.join([item for item in table_next[0] if item is not None])
@@ -122,10 +158,10 @@ class Extractor(object):
                                             if re.sub(r'\s+', '', fi) in re.sub(r'\s+', '', llines[1]):
                                                 table += table_next
                                         target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
-                                                              'table-id': str(page_id + 1) + str(ti + 1)})
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
                                     else:
                                         target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
-                                                              'table-id': str(page_id + 1) + str(ti + 1)})
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
 
                     elif ind + 1 == len(lines) - 3:
                         cnt = ind + 1
@@ -140,7 +176,7 @@ class Extractor(object):
                                 table_next = pages[index + 1]['tables'][0]
                                 table += table_next
                                 target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
-                                                      'table-id': str(page_id + 1)})
+                                                      'table-id': str(page_id + 1), 'keyword': keyword})
 
                     elif ind + 1 == len(lines) - 2:
                         cnt = ind + 1
@@ -155,7 +191,7 @@ class Extractor(object):
                             # 表格是完整的情况
                             if first == re.sub(r'\s+', '', next1):
                                target_tables.append({'page': page_id + 2, 'method': 'exact', 'table':  table_next,
-                                                     'table-id': str(page_id + 2)})
+                                                     'table-id': str(page_id + 2), 'keyword': keyword})
 
                     elif ind + 1 == len(lines) - 1:
                         cnt = ind + 1
@@ -169,7 +205,194 @@ class Extractor(object):
                             first = ''.join([word for word in table_next[1] if word is not None])
                             if first == re.sub(r'\s+', '', next1):
                                target_tables.append({'page': page_id + 2, 'method': 'exact', 'table': table_next,
-                                                     'table-id': str(page_id + 2)})
+                                                     'table-id': str(page_id + 2), 'keyword': keyword})
+
+     # 第二次查找表头
+                    if ind + 1 < len(lines) - 4:
+                        cnt = ind + 1
+                        next = lines[ind + 2]
+                        # 表头下面是否有'单位'，有就是表头，没有就不是
+                        if ind < len(lines) - 4 and re.search(r'单位[：:]', next):
+                            next = lines[ind + 4]
+                            cnt += 1
+                            for ti, table in enumerate(tables):
+                                if not table or len(table) < 2:
+                                    continue
+                                first = ''.join([word for word in table[1] if word is not None])
+                                # 表格是完整的情况
+                                if first == re.sub(r'\s+', '', next):
+                                    tables[ti] = False
+                                    last = ''.join([word for word in table[-1] if word is not None])
+                                    print(last)
+                                    print('last')
+                                    print(re.sub(r'\s+', '', lines[-2]))
+                                    print('all-2')
+                                    print(re.sub(r'\s+', '', lines[-1]))
+                                    print('all-1')
+
+                                    if last == re.sub(r'\s+', '', lines[-2]):
+                                        if index + 1 < len(pages) and len(pages[index + 1]['tables']) > 0:
+                                            table_next = pages[index + 1]['tables'][0]
+                                            fi = ''.join([item for item in table_next[0] if item is not None])
+                                            llines = re.split(r'\n+', pages[index + 1]['text'])
+                                            if re.sub(r'\s+', '', fi) in re.sub(r'\s+', '', llines[1]):
+                                                table += table_next
+                                        target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
+                                    else:
+                                        target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
+
+                                # 表格可能不完整的情况
+                                elif first in re.sub(r'\s+', '', next):
+                                    tables[ti] = False
+                                    last = ''.join([word for word in table[-1] if word is not None])
+                                    if last == re.sub(r'\s+', '', lines[-2]):
+                                        if index + 1 < len(pages) and len(pages[index + 1]['tables']) > 0:
+                                            table_next = pages[index + 1]['tables'][0]
+                                            fi = ''.join([item for item in table_next[0] if item is not None])
+                                            llines = re.split(r'\n+', pages[index + 1]['text'])
+                                            if re.sub(r'\s+', '', fi) in re.sub(r'\s+', '', llines[1]):
+                                                table += table_next
+                                        target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
+                                    else:
+                                        target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
+
+                    elif ind + 1 == len(lines) - 4:
+                        cnt = ind + 1
+                        next = lines[ind + 2]
+                        # 表头下面是否有'单位'，有就是表头，没有就不是
+                        if re.search(r'单位[：:]', next):
+                            next = lines[-2]
+                            cnt += 1
+                            table = tables[-1]
+                            first = ''.join([word for word in table[0] if word is not None])
+                            if first == re.sub(r'\s+', '', next):
+                                table_next = pages[index + 1]['tables'][0]
+                                table += table_next
+                                target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
+                                                      'table-id': str(page_id + 1), 'keyword': keyword})
+
+                    elif ind + 1 == len(lines) - 3:
+                        cnt = ind + 1
+                        next = lines[ind + 2]
+                        llines = re.split(r'\n+', pages[index + 1]['text'])
+                        # 表头下面是否有'单位'，有就是表头，没有就不是
+                        if re.search(r'单位[：:]', next):
+                            next1 = llines[2]
+                            cnt += 1
+                            table_next = pages[index + 1]['tables'][0]
+                            first = ''.join([word for word in table_next[1] if word is not None])
+                            # 表格是完整的情况
+                            if first == re.sub(r'\s+', '', next1):
+                               target_tables.append({'page': page_id + 2, 'method': 'exact', 'table':  table_next,
+                                                     'table-id': str(page_id + 2), 'keyword': keyword})
+
+                    elif ind + 1 == len(lines) - 2:
+                        cnt = ind + 1
+                        llines = re.split(r'\n+', pages[index + 1]['text'])
+                        next = llines[1]
+                        # 表头下面是否有'单位'，有就是表头，没有就不是
+                        if re.search(r'单位[：:]', next):
+                            next1 = llines[3]
+                            cnt += 1
+                            table_next = pages[index + 1]['tables'][0]
+                            first = ''.join([word for word in table_next[1] if word is not None])
+                            if first == re.sub(r'\s+', '', next1):
+                               target_tables.append({'page': page_id + 2, 'method': 'exact', 'table': table_next,
+                                                     'table-id': str(page_id + 2), 'keyword': keyword})
+
+     # 第三次查找表头
+                    if ind + 1 < len(lines) - 5:
+                        cnt = ind + 1
+                        next = lines[ind + 3]
+                        # 表头下面是否有'单位'，有就是表头，没有就不是
+                        if ind < len(lines) - 5 and re.search(r'单位[：:]', next):
+                            next = lines[ind + 5]
+                            cnt += 1
+                            for ti, table in enumerate(tables):
+                                if not table or len(table) < 2:
+                                    continue
+                                first = ''.join([word for word in table[1] if word is not None])
+                                # 表格是完整的情况
+                                if first == re.sub(r'\s+', '', next):
+                                    tables[ti] = False
+                                    last = ''.join([word for word in table[-1] if word is not None])
+                                    if last == re.sub(r'\s+', '', lines[-2]):
+                                        if index + 1 < len(pages) and len(pages[index + 1]['tables']) > 0:
+                                            table_next = pages[index + 1]['tables'][0]
+                                            fi = ''.join([item for item in table_next[0] if item is not None])
+                                            llines = re.split(r'\n+', pages[index + 1]['text'])
+                                            if re.sub(r'\s+', '', fi) in re.sub(r'\s+', '', llines[1]):
+                                                table += table_next
+                                        target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
+                                    else:
+                                        target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
+
+                                # 表格可能不完整的情况
+                                elif first in re.sub(r'\s+', '', next):
+                                    tables[ti] = False
+                                    last = ''.join([word for word in table[-1] if word is not None])
+                                    if last == re.sub(r'\s+', '', lines[-2]):
+                                        if index + 1 < len(pages) and len(pages[index + 1]['tables']) > 0:
+                                            table_next = pages[index + 1]['tables'][0]
+                                            fi = ''.join([item for item in table_next[0] if item is not None])
+                                            llines = re.split(r'\n+', pages[index + 1]['text'])
+                                            if re.sub(r'\s+', '', fi) in re.sub(r'\s+', '', llines[1]):
+                                                table += table_next
+                                        target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
+                                    else:
+                                        target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
+                                                              'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
+
+                    elif ind + 1 == len(lines) - 5:
+                        cnt = ind + 1
+                        next = lines[ind + 3]
+                        # 表头下面是否有'单位'，有就是表头，没有就不是
+                        if re.search(r'单位[：:]', next):
+                            next = lines[-2]
+                            cnt += 1
+                            table = tables[-1]
+                            first = ''.join([word for word in table[0] if word is not None])
+                            if first == re.sub(r'\s+', '', next):
+                                table_next = pages[index + 1]['tables'][0]
+                                table += table_next
+                                target_tables.append({'page': page_id + 1, 'method': 'exact', 'table': table,
+                                                      'table-id': str(page_id + 1), 'keyword': keyword})
+
+                    elif ind + 1 == len(lines) - 4:
+                        cnt = ind + 1
+                        next = lines[ind + 3]
+                        llines = re.split(r'\n+', pages[index + 1]['text'])
+                        # 表头下面是否有'单位'，有就是表头，没有就不是
+                        if re.search(r'单位[：:]', next):
+                            next1 = llines[2]
+                            cnt += 1
+                            table_next = pages[index + 1]['tables'][0]
+                            first = ''.join([word for word in table_next[1] if word is not None])
+                            # 表格是完整的情况
+                            if first == re.sub(r'\s+', '', next1):
+                               target_tables.append({'page': page_id + 2, 'method': 'exact', 'table':  table_next,
+                                                     'table-id': str(page_id + 2), 'keyword': keyword})
+
+                    elif ind + 1 == len(lines) - 3:
+                        cnt = ind + 1
+                        llines = re.split(r'\n+', pages[index + 1]['text'])
+                        next = llines[1]
+                        # 表头下面是否有'单位'，有就是表头，没有就不是
+                        if re.search(r'单位[：:]', next):
+                            next1 = llines[3]
+                            cnt += 1
+                            table_next = pages[index + 1]['tables'][0]
+                            first = ''.join([word for word in table_next[1] if word is not None])
+                            if first == re.sub(r'\s+', '', next1):
+                               target_tables.append({'page': page_id + 2, 'method': 'exact', 'table': table_next,
+                                                     'table-id': str(page_id + 2), 'keyword': keyword})
 
         #print(target_tables)
         return target_tables
@@ -188,11 +411,16 @@ class Extractor(object):
                 #  这是一个and结构
                 # if len(self.rules['in-table']) == sum([1 for in_tab in self.rules['in-table'] if in_tab in st]) and \
                 # 这是一个or结构
-                if sum([1 for in_tab in self.rules['in-table'] if re.search(in_tab, st)]) > 0 and \
-                        len(self.rules['in-table']) != 0 and \
+                #if sum([1 for in_tab in self.rules['in-table'] if re.search(in_tab, st)]) > 0 and \
+                if len(self.rules['in-table']) == sum([1 for in_tab in self.rules['in-table'] if re.search(r'' + in_tab, st)]) and \
+                                len(self.rules['in-table']) != 0 and \
                         sum([1 for not_tab in self.rules['not-in-table'] if not_tab in st]) == 0:
+
+                    #for rule in self.rules['in-table']:
+                     #   if re.search(r'' + rule, st):
+                    keyword = self.rules['in-table'][0]
                     target_tables.append({'page': page_id + 1, 'method': 'content-in-table', 'table': table,
-                                          'table-id': str(page_id + 1) + str(ti + 1)})
+                                          'table-id': str(page_id + 1) + str(ti + 1), 'keyword': keyword})
         return target_tables
 
     # 提取存在指定关键词的页面，关键词有rules指定
@@ -204,9 +432,12 @@ class Extractor(object):
         for index, page in enumerate(pages):
             text = page['text']
             page_id = page['page']
-            if len(self.rules['in-page']) == sum([1 for rule in self.rules['in-page'] if re.search(rule, text)]) \
+            if len(self.rules['in-page']) == sum([1 for rule in self.rules['in-page'] if re.search(r'' + rule, text)]) \
                     and len(self.rules['in-page']) != 0:
-                target_pages.append({'page': page_id, 'text': text})
+                for rule in self.rules['in-page']:
+                    if re.search(r'' + rule, text):
+                        keyword = rule
+                target_pages.append({'page': page_id, 'text': text, 'keyword': keyword})
 
         return target_pages
 
@@ -280,6 +511,7 @@ class Util():
             os.mkdir('tmp')
         tables = info[0]  # 函数输出了两个结果
         pages = info[1]
+
 
         # Excel样式
         style = xlwt.XFStyle()
@@ -355,12 +587,18 @@ class Util():
         for ind, page in enumerate(pages):
             page_num = page['page']
             text = page['text']
+            keyword = page['keyword']
+
             sheet2.write(ind, 0, name)
             sheet2.write(ind, 1, code)
             sheet2.write(ind, 2, year)
             sheet2.write(ind, 3, page_num)
             sheet2.write(ind, 4, 'search page')
-            sheet2.write(ind, 5, text, style)
+            sheet2.write(ind, 5, keyword)
+
+
+
+            sheet2.write(ind, 6, text, style)
 
         # save table
         i = 0
@@ -368,6 +606,8 @@ class Util():
             page = table['page']
             method = table['method']
             table_content = table['table']
+            keyword = table['keyword']
+
             if method == 'exact':
                 sty = style
             elif method == 'guess':
@@ -380,8 +620,10 @@ class Util():
                 sheet1.write(i, 2, year)
                 sheet1.write(i, 3, page)
                 sheet1.write(i, 4, method)
+                sheet1.write(i, 5, keyword)
+
                 for ind, one in enumerate(row):
-                    sheet1.write(i, 5 + ind, one if one is not None else '', sty)
+                    sheet1.write(i, 6 + ind, one if one is not None else '', sty)
                 i += 1
             i += 1
 
@@ -526,11 +768,13 @@ def re_format(sheet_size):
     sheet1.write(0, 2, 'Date')
     sheet1.write(0, 3, 'Page')
     sheet1.write(0, 4, 'Method')
+    sheet1.write(0, 5, 'Keyword')
     sheet2.write(0, 0, 'File')
     sheet2.write(0, 1, 'Code')
     sheet2.write(0, 2, 'Date')
     sheet2.write(0, 3, 'Page')
     sheet2.write(0, 4, 'Method')
+    sheet2.write(0, 5, 'Keyword')
 
     for index, file in enumerate(paths):
         book = xlrd.open_workbook(file)
@@ -540,7 +784,7 @@ def re_format(sheet_size):
         page_rows += sheet_pages.nrows
 
         for row in range(sheet.nrows):
-            if len(sheet.row_values(row)) < 5:
+            if len(sheet.row_values(row)) < 6:
                 sty1 = None
             elif sheet.row_values(row)[4] == 'exact':
                 sty1 = style
@@ -551,7 +795,7 @@ def re_format(sheet_size):
             else:
                 sty1 = None
             for col, val in enumerate(sheet.row_values(row)):
-                if col > 4:
+                if col > 5:
                     if sty1 is not None:
                         sheet1.write(tab_cnt, col, val, sty1)
                     else:
@@ -561,7 +805,7 @@ def re_format(sheet_size):
             tab_cnt += 1
         tab_cnt += 1
         for row in range(sheet_pages.nrows):
-            if len(sheet_pages.row_values(row)) < 5:
+            if len(sheet_pages.row_values(row)) < 6:
                 sty2 = None
             elif sheet_pages.row_values(row)[4] == 'exact':
                 sty2 = style
@@ -572,7 +816,7 @@ def re_format(sheet_size):
             else:
                 sty2 = None
             for col, val in enumerate(sheet_pages.row_values(row)):
-                if col > 4:
+                if col > 5:
                     if sty2 is not None:
                         sheet2.write(page_cnt, col, val, sty2)
                     else:
@@ -590,6 +834,7 @@ def re_format(sheet_size):
             sheet1.write(0, 2, 'Date')
             sheet1.write(0, 3, 'Page')
             sheet1.write(0, 4, 'Method')
+            sheet1.write(0, 5, 'Keyword')
 
         if page_rows >= sheet_size:
             page_rows = 0
@@ -600,6 +845,7 @@ def re_format(sheet_size):
             sheet2.write(0, 2, 'Date')
             sheet2.write(0, 3, 'Page')
             sheet2.write(0, 4, 'Method')
+            sheet2.write(0, 5, 'Keyword')
 
     new_book.save('tables.xls')
 
@@ -633,4 +879,4 @@ if __name__ == '__main__':
     # save...
     re_format(30000)
     # 移除临时文件，这些临时文件在程序运行过程中会保存在当前目录的tmp文件夹内，其中每个Excel文件保存的是单个PDF文件的结果，最终这些结果将会通过re_format函数整合到一个Excel中，当想要保留这些结果时，可将下面一行代码注释掉
-    shutil.rmtree('tmp')
+    #shutil.rmtree('tmp')
